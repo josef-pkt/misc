@@ -27,4 +27,6 @@ Parts that will be moved to statsmodels will become BSD-3 like all of statsmodel
 Content
 -------
 
+ex_gmm_gamma:  Gamma distribution, GMM without exog and instruments
+
 

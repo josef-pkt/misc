@@ -3,6 +3,8 @@
 
 ## GMM - Notation
 
+# Author: Josef Perktold
+
 # TODO: check shapes for arrays in math: column or row vectors, and transpose
 
 ### The general setup
@@ -50,7 +52,7 @@
 # 
 # The covariance of the parameters is
 # 
-# maxiter = 0, efficient=True :   $$(G(\theta^{(1)})' \hspace{3pt} W^{(0)} \hspace{3pt} G(\theta^{(1)}))^{-1}$    $
+# maxiter = 0, efficient=True :   $$(G(\theta^{(1)})' \hspace{3pt} W^{(0)} \hspace{3pt} G(\theta^{(1)}))^{-1}$$
 # 
 # **check:** maxiter=0 needs another review, maybe not correct for the general case, we still need scale in formula for OLS case
 # 
@@ -184,7 +186,180 @@
 # 
 # Conditional moment tests and score tests for non GMM models raise a similar issue, see ....
 
-# In[ ]:
+# In[1]:
+
+'''
+todo
+
+When we estimate based on a subset of moment conditions:
+McFadden has a section on overidentifying restriction and reformulation as LM test. I used the idea in the GMM-GLM notebook. 
+That trick might be useful as general approach to implementing extra moment conditions. (see notes in issue)
+Also, specification tests as special case, e.g. heteroscedasticity.
+
+On version of LM test in the GMM-GLM notebook only works in exactly identified models, g V g, general version coming up. 
+It looks like I'm going to reimplement conditional moment tests directly as a GMM LM test. 
+Robust (HC, HAC, cluster, ...) LM test will then be "for free".
+
+I'm getting closer to understanding the variations of score or LM tests.
+
+Essentially, I need to implement two version, one with arbitrary restrictions on parameters 
+(a general fit_constrained when the full model is available) 
+and a version that tests additional moment conditions added to an estimated restricted model.
+
+Variation: Testing individual moment condition when we add several. Robust specification tests. 
+papers ??? (I read them during conditional moment test development)
 
 
+'''
+0
+
+
+# The following summarizes the LM test statistics in McFadden. In these formulas, capital letters without subscript refer to asymptotic quantities that can be estimated using the constrained parameters. However, under the null hypothesis different estimates all converge to the same values.
+# 
+# The Lagrange multipliers of the constrained GMM optimization are denoted by $\gamma_{an}$. All other terms are defined above. Superscript minus is used for the generalized inverse, the Moore-Penrose inverse.
+# 
+# The first set of LM test statistics are for efficient GMM, i.e. with $W = S^{-1}$
+# 
+# $LM_{1n}$ $$n \hspace{3pt} \gamma_{an} \hspace{3pt} A B^{-1} A' \hspace{3pt} \gamma_{an}$$
+# 
+# $LM_{3n}$ $$n \hspace{3pt} \Delta_{\theta} Q_n(T_{an})' \hspace{3pt} B^{-1} \hspace{3pt} \Delta_{\theta} Q_n(T_{an})$$
+# 
+# $LM_{2n}2$ $$n \hspace{3pt} \Delta_{\theta} Q_n(T_{an})' \hspace{3pt} [ A'  \hspace{3pt}(A B^{-1} A')^{-1} \hspace{3pt} A']^- \hspace{3pt} \Delta_{\theta} Q_n(T_{an})$$
+# 
+# $LM_{2n}1$ $$n \hspace{3pt} \Delta_{\theta} Q_n(T_{an})' \hspace{3pt} B^{-1} A'  \hspace{3pt}(A B^{-1} A')^{-1} \hspace{3pt} A B^{-1} \hspace{3pt} \Delta_{\theta} Q_n(T_{an})$$
+# 
+# The score or derivative of the GMM objective function is
+# $$\Delta_{\theta} Q_n(T_{an}) = G W g(z, T_{an})$$
+# 
+# substituting this and the definiton of $B$ into $LM_{3n}$ and using $W = S^{-1}$, it becomes
+# $$n \hspace{3pt}  g(z, T_{an})' S^{-1} G'\hspace{3pt} (G' S^{-1} G)^{-1} \hspace{3pt} G S^{-1} g(z, T_{an})$$
+# 
+# In the exactly identified case G is square and invertible and we can factor the inverse matrices to obtain
+# $$n \hspace{3pt}  g(z, T_{an})' S^{-1} G' G'^{-1} S G^{-1}  G S^{-1} g(z, T_{an})$$
+# 
+# which simplifies to
+# $$n \hspace{3pt}  g(z, T_{an})' S^{-1} g(z, T_{an})$$
+# 
+# which is the same as the score statistic for maximum likelihood models where g is the score function, that is the first derivative of the loglikelihood function, and S is ???.
+# 
+# We will continue later with this form of the score test for the special case of specification testing when the constrained model has been estimated with a subset of moment restrictions and we want to test the specification by adding additional moment conditions. If the initial model is exactly identified as in MLE models, then the initial set of moment conditions, the initial subvector of $g$, will be zero. 
+
+# If we do not use efficient GMM and the weight matrix is not the inverse of the covariance matrix of the moment conditions, then terms in the quadratic forms do not cancel and we need the long version. $LM_{3n}$ is not available in this case because it does not have a asymptotic chisquare distribution.
+# 
+# $LM_{1n}$ $$n \hspace{3pt} \gamma_{an} \hspace{3pt} A C^{-1} A' \hspace{3pt} [A C^{-1} H C^{-1} A']^{-1} \hspace{3pt} A C^{-1} A' \hspace{3pt} \gamma_{an}$$
+# 
+# $LM_{2n}1$ $$n \hspace{3pt} \Delta_{\theta} Q_n(T_{an})' \hspace{3pt} [A' (A C^{-1} A')^{-1} \hspace{3pt} A C^{-1} H C^{-1} A' \hspace{3pt} (A C^{-1} A')^{-1} A]^{\mathbf{-}} \hspace{3pt} \Delta_{\theta} Q_n(T_{an})$$
+# 
+# $LM_{2n}2$ $$n \hspace{3pt} \Delta_{\theta} Q_n(T_{an})' \hspace{3pt} A' \hspace{3pt} [A C^{-1} H C^{-1} A']^{-1} \hspace{3pt} A  \hspace{3pt} \Delta_{\theta} Q_n(T_{an})$$
+# 
+# 
+# **Implementation note:** The last version is relatively simple, the center part $C^{-1} H C^{-1}$ is the covariance of the parameter estimate in the unconstrained model. However, this is not directly available in the current implementation for the restricted model, where the underlying matrices are evaluated at the constrained parameter estimates.
+# It would be easy to implement if `maxiter` had an option to not update or estimate the parameter. Otherwise we have to evaluate all underlying matrices directly.
+# 
+# All version of the LM test statistic are asymptotically equivalent, including variations that use different estimates for the matrices in the quadratic forms that are consistent under the Null (and local alternatives). However, small sample or higher order properties will differ across variations, but I do not know in which way.
+# 
+# 
+# 
+# 
+# 
+
+# 
+
+#### Specification Testing in exactly identified models
+
+# This is the part that got me initially interested in using GMM for implementing score tests. 
+# 
+# A large number of specification tests are available for the linear model, where we estimate an OLS model and then test for various deviations from the intitial specification, for example we test for omitted variables, heteroscedasticity, correlation and nonlinearity.
+# Under normality, and in general with all distributions in the linear exponential family, the parameters for the covariance of the error are asymptotically uncorrelated with the mean paramters. This block structure provides a very simple form of to test for heteroscedasticity and correlation because we do not need to take the interaction of mean and covariance parameters into account in the Lagrange multiplier tests.
+# 
+# The following illustrates two examples from the section on overidentifying restrictions in McFadden.
+
+# **Example 1 **
+# 
+# In the homoscedastic linear model $y = x \beta + u$ with $E(y|x) = 0$ and $E(u|x) = \sigma^2$ the moment conditions are
+# 
+# \begin{align}
+# &x (y - x \beta) \\
+# &(y - x \beta)^2 - \sigma^2
+# \end{align}
+# 
+# If the errors $u$ are conditonally normally distributed $u \sim N(0, \sigma^2)$, then we have additional restrictions on higher order moments. Normality tests like Jarque Bera test restrictions on the values of skew and kurtosis or third and fourth moment. Those moment conditions are given by
+# 
+# \begin{align}
+# &(y - x \beta)^3 / \sigma^2 \\
+# &(y - x \beta)^4 / \sigma^4 - 3
+# \end{align}
+# 
+# 
+# Note: If we apply standard two-step or iterated GMM, then we would estimate the weight matrix from the empirical moment conditions without imposing further restrictions. However, GMM estimates can be noisy in small samples, and we can often improve the precision of the estimates by including available information in the calculation of the weight matrix or the covariance of the moment conditions. In this case, we could use the assumption of normality and of no heteroscedasticity also on the updating of the weight matrix (see ??? for an empirical example.) However, tests for variance that are derived under normality are in general very sensitive to deviations from normality, and we are trading of increased precision to robustness to misspecification. One example for this is the Bartlett test for the equality of variances. If we want to test the null hypothesis of normality, then imposing normality on the weight matrix would be in the spirit of score or Lagrange multiplier tests, where we want to derive our test statistic under the null. To emphasize again, these versions of test for overidentifying restrictions and LM tests are asymptotically equivalent but will differ in small sample properties.
+# 
+# (Related: articles that show that GMM is not very reliable and precise in small samples, especially when including variance and higher order terms. where and which references???)
+# 
+# **Using parameter restriction**
+# 
+# We can transform the previous example to testing normality as as LM test with parameter restriction. We estimate two new parameters, skew $c_1$ and excess kurtosis $c2$. The null hypothesis of normality is then that both coefficient are zero, i.e. $H0: c_1=0, \hspace{5pt} c_2=0$
+# 
+# \begin{align}
+# &x (y - x \beta) \\
+# &(y - x \beta)^2 - \sigma^2 \\
+# &(y - x \beta)^3 / \sigma^2 - c_1 \\
+# &(y - x \beta)^4 / \sigma^4 - 3 - c_2
+# \end{align}
+# 
+# Because we are now in the exactly identified case, we can use the simplified version of score test $LM_{3n}$.
+
+# In[1]:
+
+
+
+
+# In[1]:
+
+
+
+
+# In[1]:
+
+
+
+
+# In[1]:
+
+
+
+
+# The next is completely unrelated, integer chunk iterator for scipy by Evgeni
+
+# In[2]:
+
+import numpy as np
+def _iter_chunked(x0, x1, chunksize=4, inc=1):
+    """Iterate from x0 to x1 *inclusive* in chunks of chunksize and steps inc.
+    x0 must be finite, x1 need not be. In the latter case, the iterator is infinite.
+    Handles both x0 < x1 and x0 > x1 (in which case, iterates downwards.)
+    """
+    x = x0
+    while (x - x1) * inc < 0:
+        delta = min(chunksize, abs(x - x1))
+        step = delta * inc
+        supp = np.arange(x, x + step, inc)
+        x += step
+        yield supp
+
+
+# In[2]:
+
+
+
+
+# In[3]:
+
+x0 = 0; x1 = 10
+for ii in _iter_chunked(x0, x1, chunksize=3, inc=1): print(ii)
+
+
+# In[4]:
+
+x0 = 10; x1 = -1
+for ii in _iter_chunked(x0, x1, chunksize=3, inc=-1): print('->', repr(ii))
 

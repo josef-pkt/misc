@@ -63,7 +63,7 @@ from statsmodels.discrete.tests.test_sandwich_cov import *
 
 from statsmodels.genmod.generalized_linear_model import GLM
 from statsmodels.genmod.generalized_estimating_equations import GEE
-from statsmodels.genmod.dependence_structures import Independence
+from statsmodels.genmod.cov_struct import Independence
 
 
 ### Poisson
@@ -75,7 +75,7 @@ from statsmodels.genmod.dependence_structures import Independence
 res2 = results_st.results_poisson_hc1
 mod = smd.Poisson(endog, exog)
 res1 = mod.fit(disp=False)
-print res1.bse
+print(res1.bse)
 
 
 # In[5]:
@@ -168,7 +168,7 @@ print(res_gee.bse)
 # In[13]:
 
 print(res_glm_clu2.bse.values)
-print(np.sqrt(np.diag(res_gee.robust_covariance_bc)))
+print(np.sqrt(np.diag(res_gee.cov_robust_bc)))
 
 
 # It is not clear to me where the difference is comming from based on trying to reverse engineer the scaling difference between GEE robust and Poisson cluster robust standard errors. 
@@ -181,7 +181,7 @@ res_gee.bse / res_glm_clu2.bse.values
 
 # In[15]:
 
-np.sqrt(np.diag(res_gee.robust_covariance_bc)) / res_glm_clu2.bse.values
+np.sqrt(np.diag(res_gee.cov_robust_bc)) / res_glm_clu2.bse.values
 
 
 # In[16]:
@@ -196,7 +196,7 @@ np.sqrt(res_glm_clu2.pearson_chi2 / res_glm_clu2.df_resid)
 
 # In[18]:
 
-print res_gee.summary()
+print(res_gee.summary())
 
 
 #### Comparison Poisson
@@ -315,7 +315,7 @@ print(res_gee.bse)
 # In[27]:
 
 print(res_glm_logit_clu2.bse.values)
-print(np.sqrt(np.diag(res_gee.robust_covariance_bc))) 
+print(np.sqrt(np.diag(res_gee.cov_robust_bc))) 
 
 
 #### Comparison Logit
@@ -395,11 +395,11 @@ print(res_glm_probit_clu.bse)
 
 # In[34]:
 
-print pd.concat((res_probit_clu.params, res_glm_probit_clu.params), axis=1)
-print pd.concat((res_probit_clu.bse, res_glm_probit_clu.bse), axis=1)
+print(pd.concat((res_probit_clu.params, res_glm_probit_clu.params), axis=1))
+print(pd.concat((res_probit_clu.bse, res_glm_probit_clu.bse), axis=1))
 
-print pd.concat((res_probit_clu2.params, res_glm_probit_clu2.params), axis=1)
-print pd.concat((res_probit_clu2.bse, res_glm_probit_clu2.bse), axis=1)
+print(pd.concat((res_probit_clu2.params, res_glm_probit_clu2.params), axis=1))
+print(pd.concat((res_probit_clu2.bse, res_glm_probit_clu2.bse), axis=1))
 
 # TODO: use summary_col to compare estimators
 
@@ -438,7 +438,7 @@ print(res_gee.bse)
 # In[37]:
 
 print(res_glm_probit_clu2.bse.values)
-print(np.sqrt(np.diag(res_gee.robust_covariance_bc)))
+print(np.sqrt(np.diag(res_gee.cov_robust_bc)))
 
 
 # In[38]:
@@ -457,11 +457,6 @@ pd.DataFrame(np.round(np.column_stack([np.asarray(getattr(res, 'params')) for re
 print('Standard Errors')
 pd.DataFrame(np.round(np.column_stack([np.asarray(getattr(res, 'bse')) for res in res_all]), 4), 
                  index=res_probit_clu.params.index, columns=res_names)
-
-
-# In[39]:
-
-
 
 
 # In[39]:

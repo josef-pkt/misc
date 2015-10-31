@@ -9,6 +9,14 @@
 # 
 # Spotchecking some of the results show good agreement with R or SAS, but this notebook is not organized yet.
 
+# **Table of Content**
+# 
+#  - [Example 1: 2xk Table](#Example-1:-2-x-k-table)
+#  - [Example 2: 2x2-Loglinear Model (GLM)](#Example-2x2-Loglinear-Model-(GLM))
+#  - [Example 3: Three Factors - Berkeley Admission](#Example-3:-Three-Factors---Berkeley-admission)
+#  - [Example 4: Four Factors - Titanic](#Example-4:-Four-Factors---Titanic)
+# 
+
 # In[1]:
 
 import numpy as np
@@ -395,53 +403,53 @@ df_resid_pairs = res.df_resid
 help(pd.pivot)
 
 
-# In[56]:
+# In[54]:
 
 
 
 
-# In[57]:
+# In[55]:
 
 t = pd.pivot_table(df_adm, index=['Dep', 'Sex'], columns=df_adm[['Admit']], values='count')
 
 
-# In[58]:
+# In[56]:
 
 type(t)
 
 
-# In[59]:
+# In[57]:
 
 t.index
 
 
-# In[60]:
+# In[58]:
 
 t['total'] = t.sum(1)
 
 
-# In[61]:
+# In[59]:
 
 t.columns
 
 
-# In[63]:
+# In[60]:
 
 t2 = t.reset_index()
 
 
-# In[64]:
+# In[61]:
 
 t2
 
 
-# In[65]:
+# In[62]:
 
 endog = t2[['Accept', 'total']]
 #exog = ?
 
 
-# In[66]:
+# In[63]:
 
 modb = GLM.from_formula('Accept + total ~ Dep + Sex', data=t2, family=families.Binomial())
 resb = modb.fit()
@@ -449,7 +457,7 @@ print(resb.summary())
 resb.wald_test_terms()
 
 
-# In[67]:
+# In[64]:
 
 modb = GLM.from_formula('Accept + total ~ Dep + Sex + Dep*Sex', data=t2, family=families.Binomial())
 resb = modb.fit()
@@ -457,12 +465,12 @@ print(resb.summary())
 resb.wald_test_terms(combine_terms=['Sex'])
 
 
-# In[68]:
+# In[65]:
 
 # resb.wald_test_terms(combine_terms=['Male']) # exception
 
 
-# In[69]:
+# In[66]:
 
 formula_2int = 'count ~ Dep + Sex + Admit + Dep*Sex + Sex*Admit + Dep*Admit'
 mod = GLM.from_formula(formula_2int + ' - Dep*Admit', data=df_adm, family=families.Poisson())
@@ -471,7 +479,7 @@ print(res.summary())
 res.wald_test_terms()
 
 
-# In[70]:
+# In[67]:
 
 formula_2intc = 'count ~ Dep + Sex + Admit + Dep*Sex + Sex*Admit'
 mod = GLM.from_formula(formula_2intc, data=df_adm, family=families.Poisson())
@@ -480,7 +488,7 @@ print(res.summary())
 res.wald_test_terms()
 
 
-# In[71]:
+# In[68]:
 
 interact2way = 'Dep*Sex Sex*Admit Dep*Admit'.split()
 mod = GLM.from_formula('count ~ Dep + Sex + Admit', data=df_adm, family=families.Poisson())
@@ -489,7 +497,7 @@ print(res.summary())
 res.wald_test_terms()
 
 
-# In[72]:
+# In[69]:
 
 import itertools
 list(itertools.combinations(range(3), 2))
@@ -497,12 +505,12 @@ list(itertools.combinations(range(3), 2))
 
 # **Type 3 Analysis of Deviance, Likelihood Ratio tests**
 
-# In[73]:
+# In[70]:
 
 interact2way = 'Dep*Sex Sex*Admit Dep*Admit'.split()
 
 
-# In[74]:
+# In[71]:
 
 for i, j in itertools.combinations(range(3), 2):
     #print(interact2way[i], interact2way[j], end=' ')
@@ -516,14 +524,138 @@ for i, j in itertools.combinations(range(3), 2):
           stats.chi2.sf(dev_ij - deviance_pairs, res_ij.df_resid - df_resid_pairs))
 
 
-# In[75]:
+# In[72]:
 
 deviance_pairs
 
 
 # see https://onlinecourses.science.psu.edu/stat504/node/129 for some related deviance numbers and a full table (to be filled out).
 
+# In[73]:
+
+formula_2intc = 'count ~ Dep:Sex + Sex:Admit + Dep:Admit'
+mod = GLM.from_formula(formula_2intc, data=df_adm, family=families.Poisson())
+res = mod.fit()
+print(res.summary())
+
+
+# In[74]:
+
+formula_2intc = 'count ~ Dep:Sex:Admit - 1'
+mod = GLM.from_formula(formula_2intc, data=df_adm, family=families.Poisson())
+res = mod.fit()
+print(res.summary())
+
+
+### Example 4: Four Factors - Titanic
+
 # In[75]:
+
+dft = datasets.get_rdataset("Titanic").data
+dft.head()
+
+
+# In[76]:
+
+dft['Freq'].sum()
+
+
+# In[77]:
+
+tt = pd.pivot_table(dft, index=['Class','Sex', 'Age'], columns=dft[['Survived']], values='Freq')
+
+
+# In[78]:
+
+tt2 = tt.reset_index()
+
+
+# In[79]:
+
+tt2['total'] = tt2['No'] + tt2['Yes']
+tt2
+
+
+# In[80]:
+
+dft.columns
+
+
+# In[81]:
+
+formula_main = 'Freq ~ Class + Sex + Age + Survived'
+mod = GLM.from_formula(formula_main, data=dft, family=families.Poisson())
+res = mod.fit()
+print(res.summary())
+print(res.wald_test_terms())
+
+
+# In[82]:
+
+res.deviance, stats.chi2.sf(res.deviance, res.df_resid), res.df_resid
+
+
+# In[83]:
+
+res.pearson_chi2, stats.chi2.sf(res.pearson_chi2, res.df_resid), res.df_resid
+
+
+# In[84]:
+
+formula_main = 'Freq ~ Class + Sex + Age + Survived'
+formula_minus4 = 'Freq ~ Class * Sex * Age * Survived - Class : Sex : Age : Survived'
+mod = GLM.from_formula(formula_minus4, data=dft, family=families.Poisson())
+res = mod.fit()
+print(res.summary())
+print(res.wald_test_terms())
+print('LR test', res.deviance, stats.chi2.sf(res.deviance, res.df_resid), res.df_resid)
+print('Pearson Chi2 test', res.pearson_chi2, stats.chi2.sf(res.pearson_chi2, res.df_resid), res.df_resid)
+
+
+# In[85]:
+
+formula_main = 'Freq ~ Class + Sex + Age + Survived'
+formula_minus4 = 'Freq ~ Class * Sex * Age * Survived - Class : Sex : Age : Survived'
+formula_as = 'Freq ~ Class + Sex + Age + Survived + Age * Survived'
+mod = GLM.from_formula(formula_as, data=dft, family=families.Poisson())
+res = mod.fit()
+print(res.summary())
+print(res.wald_test_terms())
+print('LR test', res.deviance, stats.chi2.sf(res.deviance, res.df_resid), res.df_resid)
+print('Pearson Chi2 test', res.pearson_chi2, stats.chi2.sf(res.pearson_chi2, res.df_resid), res.df_resid)
+
+
+# In[86]:
+
+formula_main = 'Freq ~ Class + Sex + Age + Survived'
+formula_minus4 = 'Freq ~ Class * Sex * Age * Survived - Class : Sex : Age : Survived'
+formula_all2s = 'Freq ~ Class + Sex + Age + Survived + Class : Survived + Sex : Survived + Age : Survived'
+mod = GLM.from_formula(formula_all2s, data=dft, family=families.Poisson())
+res = mod.fit()
+
+print(res.summary())
+print(res.wald_test_terms())
+print()
+print('LR test', res.deviance, stats.chi2.sf(res.deviance, res.df_resid), res.df_resid)
+print('Pearson Chi2 test', res.pearson_chi2, stats.chi2.sf(res.pearson_chi2, res.df_resid), res.df_resid)
+
+
+# In[87]:
+
+results_df = dft.copy()
+results_df['fitted'] = np.round(res.fittedvalues,2)
+results_df['resid_response'] = np.round(res.resid_response, 2)
+results_df['resid_pearson'] = np.round(res.resid_pearson, 2)
+pd.set_option('display.width', 1000)
+print(results_df)
+
+
+# In[87]:
+
+
+
+
+# In[87]:
 
 
 

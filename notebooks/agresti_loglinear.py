@@ -135,6 +135,8 @@ print()
 print('Pchi2 :', res_i.pearson_chi2, stats.chi2.sf(res_i.pearson_chi2, res_i.df_resid), res_i.df_resid)
 print('LR :   ', res_i.deviance, stats.chi2.sf(res_i.deviance, res_i.df_resid), res_i.df_resid)
 
+res_2way = res_i   # keep it for later
+
 
 # In[16]:
 
@@ -202,7 +204,71 @@ res_I23.deviance, res_b.deviance
 res_I23.pearson_chi2, res_b.pearson_chi2
 
 
-# In[24]:
+# In[25]:
+
+print(np.exp(pbinom))
+print('location[T.Rural]', np.exp(-pbinom['location[T.Urban]']))
+
+
+# In[26]:
+
+from statsmodels.genmod._prediction import params_transform_univariate
+rates = params_transform_univariate(res_b.params, res_b.cov_params())
+
+
+# In[27]:
+
+print(rates.summary_frame())
+
+
+# In[28]:
+
+params_transform_univariate(res_b.params, res_b.cov_params(), link=links.log()).summary_frame()
+
+
+# The are poisson intensities, `exp(params)`, which are multiplicative for the predicted intensity, i.e. the predicted mean.
+# Agresti calculates several odds_ratio based on either this or the prediction for individual cells.
+
+# In[29]:
+
+params_transform_univariate(res_I23.params, res_I23.cov_params(), link=links.log()).summary_frame()
+
+
+# In[30]:
+
+3254.661826 * 0.296294
+
+
+# In[31]:
+
+res_I23.get_prediction().summary_frame()
+
+
+# In[32]:
+
+res_I23.get_prediction(offset=[-1]).summary_frame()
+
+
+# In[33]:
+
+params_transform_univariate(res_2way.params, res_2way.cov_params(), link=links.log()).summary_frame()
+
+
+# Agresti uses "Urban" as reference level for the locatation. We can replicate by changing the sign of the affected parameters, instead of recoding the model. (This works in this case because we only have two levels, i.e. location is binary, and our transformation is the exponential function.)
+
+# In[34]:
+
+sign_correction = np.ones(len(res_2way.params))
+sign_correction[[3, 6, 8]] = -1
+params_transform_univariate(sign_correction * res_2way.params, res_2way.cov_params(), link=links.log()).summary_frame()
+
+
+# The values for the interaction effects above are the odds ratio as reported in Agresti table 8.10 for the all two-ways model, 
+# `0.58, 2.13, 0.44, 1.23, 0.63, 1.09`.
+# 
+# Calculating the odds ratio for the previous model with a three-way interaction is more complex and not done here.
+
+# In[34]:
 
 
 

@@ -493,7 +493,7 @@ for test, l, u in [('binom        ', 4, 15), ('binom_central', 3, 15), ('score  
 
 # In[44]:
 
-def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), item=None, use_idx=False):
+def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), kwds=None, item=None, use_idx=False):
     """calculate power for proportion test by explicit numeration of sample space
     
     
@@ -501,6 +501,9 @@ def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), ite
     None if return is pvalue, integer for index of pvalue if tuple is returned
     
     """
+    if kwds is None:
+        kwds = {}
+        
     sample_space = np.arange(nobs + 1)
     try:
         # TODO: how do we vectorize, if res were a instance with pvalue attribute, then it would be easier.
@@ -512,9 +515,9 @@ def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), ite
     except Exception:
         # assume test_func is not vectorized
         if item is None:
-            res = [test_func(x, nobs, p_null, *args) for x in sample_space]
+            res = [test_func(x, nobs, p_null, *args, **kwds) for x in sample_space]
         else:
-            res = [test_func(x, nobs, p_null, *args)[item] for x in sample_space]
+            res = [test_func(x, nobs, p_null, *args, **kwds)[item] for x in sample_space]
     
     pvalues = np.asarray(res)
     rej_indicator = (pvalues <= alpha)
@@ -809,10 +812,116 @@ po
 
 
 
+# Next we try exact power for the already available proportion_ztest
+
+# In[71]:
+
+p0 = 0.5
+pa = 0.6
+diff = pa - p0
+smprop.proportions_ztest(nobs_ * (pa), nobs_, value=p0, alternative='two-sided', prop_var=p0)
+
+
+# In[72]:
+
+#power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, use_idx=1)  #this raises exception
+
+pzt = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, prop_var=p_null)
+power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)   #use_idx=False raises exception
+
+
+# In[73]:
+
+p0, pa, nobs_
+
+
+# In[74]:
+
+pv = [smprop.proportions_ztest(x, nobs_, value=p0, alternative='two-sided', prop_var=p0)[1] for x in np.arange(60, 99)]
+pv = np.asarray(pv)
+np.column_stack((np.arange(60, 99), pv, pv <=0.05))
+
+
+# The power using the exact distribution is lower than using the asymptotic normal distribution.
+# The rejection region looks correct, so how do we verify that we calculated the power correctly?
+# 
+# 
+# PASS reports the following values
+# 
+# ```
+#                           Exact  Z-Test  Z-Test  Z-Test  Z-Test
+#                   Target   Test   S(P0)  S(P0)C    S(P)   S(P)C
+# n    P0     P1    Alpha   Power   Power   Power   Power   Power
+# 10 0.5000 0.6000 0.0500 0.04804 0.04804 0.04804 0.17958 0.17958
+# 50 0.5000 0.6000 0.0500 0.23706 0.33613 0.23706 0.33613 0.23706
+# ```
+
+# In[75]:
+
+p0, pa, nobs_ = 0.5, 0.6, 50
+power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)
+
+
+# 0.33613 is the same as reported by PASS for the exact power of the score test, `S(P0)`. Unfortunately for testing purposes, in this example Wald and score test report identical numbers for n=50.
+
 # In[ ]:
 
 
 
+
+# In[76]:
+
+pzt_wald = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, prop_var=None)
+power_binom_proptest(pzt_wald, p0, pa, nobs_, item=1, use_idx=1)
+
+
+# 10 0.5000 0.6000 0.0500 0.04804 0.04804 0.04804 0.17958 0.17958
+
+# In[77]:
+
+nobs_ = 10
+pzt_wald = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, prop_var=None)
+power_binom_proptest(pzt_wald, p0, pa, nobs_, item=1, use_idx=1)
+
+
+# This is the same as the Wald test, while the score test has much lower  power in this example. It is only around 0.048 which is the same in PASS and our calculations at the provided print precision.
+
+# In[78]:
+
+power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)
+
+
+# Know we know how to use it, and I added keywords to the `power_binom_proptest` above, we can drop the use of lambda functions.
+
+# In[79]:
+
+power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, item=1, use_idx=1)
+
+
+# In[80]:
+
+power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, kwds={'prop_var': p0}, item=1, use_idx=1)
+
+
+# In[81]:
+
+print(power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, item=1, use_idx=0))
+print(power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, kwds={'prop_var': p0}, item=1, use_idx=0))
+
+
+# In[ ]:
+
+
+
+
+# ## Summary
+# 
+# Now, we have almost all the necessary pieces working and verified on a few example. The next step is to clean this up, convert it to usage friendly function or classes and convert the examples to unit tests.
+# 
+# We have now two exact hypothesis tests, `minlike` and `central`, two tests based on asymptotic normality, `wald` and `score`, and we have three ways of calculating the power, using the exact distribution, using the asymptotic normal distribution, and the already existing power calculation based on effect size that does not distinguish that variance is different under the null and under the alternative.
+# 
+# We are still missing some examples, power calculations for confidence intervals and equivalence tests, where some functions are already available in statsmodels.stats.proportions. We still need a function that finds the sample size given the functions for the power. 
+# Vectorization for different alternatives or number of observations depends on the implementation details and does not work across all cases. 
 
 # In[ ]:
 
@@ -830,14 +939,14 @@ po
 
 # TODO: The following is not correct because when we change the sample size, then the rejection region also changes.
 
-# In[71]:
+# In[82]:
 
 [power_binom_reject(4, 15, p_null, nobs_) for nobs_ in range(30, 50)]
 
 
 # We can also calculate this in vectorized form for the set of sample sizes and all three tests:
 
-# In[72]:
+# In[83]:
 
 power_binom_reject(np.array([4, 3, 4]), np.array([15, 15, 14]), p_null, np.arange(30, 50)[:, None])
 
@@ -854,27 +963,27 @@ power_binom_reject(np.array([4, 3, 4]), np.array([15, 15, 14]), p_null, np.arang
 
 # ## Trying out two sample proportion, incorrect if nobs is scalar instead of same length as count.
 
-# In[73]:
+# In[84]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=0, alternative='two-sided', prop_var=p_null)
 
 
-# In[74]:
+# In[85]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[75]:
+# In[86]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[76]:
+# In[87]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=-1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[77]:
+# In[88]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=-1/30, alternative='two-sided', prop_var=p_null)
 
@@ -884,17 +993,17 @@ smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=-1/30, alternat
 
 
 
-# In[ ]:
+# In[89]:
 
-get_ipython().magic('pinfo smprop.proportion_confint')
-
-
-# In[ ]:
-
-smprop.proportion_confint()
+#?smprop.proportion_confint()
 
 
-# In[ ]:
+# In[90]:
+
+smprop.proportion_confint(count, nobs)
+
+
+# In[91]:
 
 from statsmodels.stats.proportion import proportion_effectsize
 es = proportion_effectsize(0.4, 0.5)
@@ -902,7 +1011,7 @@ smpow.NormalIndPower().solve_power(es, nobs1=60, alpha=0.05, ratio=0)
 # R pwr 0.3447014091272153
 
 
-# In[ ]:
+# In[92]:
 
 smpow.NormalIndPower().solve_power(proportion_effectsize(0.4, 0.5), nobs1=None, alpha=0.05, ratio=0, power=0.9)
 
@@ -922,7 +1031,7 @@ smpow.NormalIndPower().solve_power(proportion_effectsize(0.4, 0.5), nobs1=None, 
 
 
 
-# In[ ]:
+# In[93]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 509/2, 0.82
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
@@ -931,7 +1040,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
     
 
 
-# In[ ]:
+# In[94]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 419/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
@@ -939,7 +1048,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
                      critval_continuity=0)
 
 
-# In[ ]:
+# In[95]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 417/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
@@ -947,7 +1056,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
                      critval_continuity=0)
 
 
-# In[ ]:
+# In[96]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 420/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
@@ -955,7 +1064,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
                      critval_continuity=0)
 
 
-# In[ ]:
+# In[97]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 414/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
@@ -973,30 +1082,30 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
 
 
 
-# In[ ]:
+# In[98]:
 
 low, upp, nobs = 0.4, 0.6, 100
 smprop.binom_tost_reject_interval(low, upp, nobs, alpha=0.05)
 
 
-# In[ ]:
+# In[99]:
 
 value, nobs = 0.4, 50
 smprop.binom_test_reject_interval(value, nobs, alpha=0.05)
 
 
-# In[ ]:
+# In[100]:
 
 smprop.proportion_confint(50, 100, method='beta')
 
 
-# In[ ]:
+# In[101]:
 
 low, upp, nobs = 0.7, 0.9, 100
 smprop.binom_tost_reject_interval(low, upp, nobs, alpha=0.05)
 
 
-# In[ ]:
+# In[102]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 100, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
@@ -1004,13 +1113,13 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
                      critval_continuity=0)
 
 
-# In[ ]:
+# In[103]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 100, 0.8
 smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
 
 
-# In[ ]:
+# In[104]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 125, 0.8
 smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
@@ -1031,7 +1140,7 @@ smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
 
 
 
-# In[ ]:
+# In[105]:
 
 # from Lachine 1981 equ (3) and (4)
 
@@ -1046,16 +1155,16 @@ def power_normal_greater(diff, std_null, std_alt, nobs, alpha=0.05):
     return stats.norm.cdf(crit_pow)
 
 
-# In[ ]:
+# In[106]:
 
 # Note for two sample comparison we have to adjust the standard deviation for unequal sample sizes
 n_frac1 = 0.5
-n_frac2 = 1 - frac1
+n_frac2 = 1 - n_frac1
 
 # if defined by ratio: n2 = ratio * n1
 ratio = 1
 n_frac1 = 1 / ( 1. + ratio)
-n_frac2 = 1 - frac1
+n_frac2 = 1 - n_frac1
 
 
 # If we use fraction of nobs, then sample_size return nobs is total number of observations
@@ -1065,30 +1174,30 @@ nobs = sample_size_normal_greater(diff, std_null, std_alt, alpha=0.05, power=0.9
 nobs
 
 
-# In[ ]:
+# In[107]:
 
 #nobs = 858
 power_normal_greater(diff, std_null, std_alt, nobs, alpha=0.05)
 
 
-# In[ ]:
+# In[108]:
 
 alpha=0.05; power=0.9
 stats.norm.isf(alpha), stats.norm.isf(1 - power)
 
 
-# In[ ]:
+# In[109]:
 
 crit_alpha = stats.norm.isf(alpha)
 (np.sqrt(nobs) * np.abs(diff) - crit_alpha * std_null) / std_alt
 
 
-# In[ ]:
+# In[110]:
 
 stats.norm.cdf(_)
 
 
-# In[ ]:
+# In[111]:
 
 smprop.binom_test_reject_interval([0.4, 0.6], [100], alpha=0.05)
 

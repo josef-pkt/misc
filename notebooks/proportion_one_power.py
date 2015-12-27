@@ -62,43 +62,102 @@ print('estimate: ', prop_mle)
 ci_df
 
 
-# **Two sided hypothesis**
+# We can check some corner case behavior to see if the function handles those correctly. It does not yet do so. beta/exact confidence interval contains a NaN if the count is all of the same kind, normal and agresti_coull return proportions that are negative or larger than one. (I opened https://github.com/statsmodels/statsmodels/issues/2742 )
 
 # In[5]:
+
+count_ = 0
+confints0 = [smprop.proportion_confint(count_, nobs, alpha=0.05, method=method) for method in confint_methods]
+count_ = 1
+confints1 = [smprop.proportion_confint(count_, nobs, alpha=0.05, method=method) for method in confint_methods]
+count_ = nobs - 1
+confintsnm1 = [smprop.proportion_confint(count_, nobs, alpha=0.05, method=method) for method in confint_methods]
+count_ = nobs
+confintsn = [smprop.proportion_confint(count_, nobs, alpha=0.05, method=method) for method in confint_methods]
+pd.DataFrame(np.column_stack((confints0, confints1, confintsnm1, confintsn)), index=confint_methods, 
+             columns=['0 lower', '0 upper', '1 lower', '1 upper', 'n-1 lower', 'n-1 upper', 'n lower', 'n upper'])
+
+
+# **Two sided hypothesis**
+
+# In[6]:
 
 smprop.binom_test(count, nobs, prop=p_null, alternative='two-sided')
 
 
-# In[6]:
+# In[7]:
 
 smprop.proportions_ztest(count, nobs, value=p_null, alternative='two-sided')
 
 
-# In[7]:
+# In[8]:
 
 smprop.proportions_ztest(count, nobs, value=p_null, alternative='two-sided', prop_var=p_null)
 
 
+# **Aside: Corner case for tests**
+# 
+# Many normal distribution based hypothesis tests have problems with observations where the count is zero. Various solutions have been proposed, one of them is to add 0.5 to all zero observations. PASS also adds a small number like 0.001 for the power calculations in this case. There is currently no option for this in my functions.
+
+# In[9]:
+
+print('x = 0')
+count_ = 0
+p_null_ = 0.05
+print(smprop.binom_test(count_, nobs, prop=p_null_, alternative='two-sided'))
+print(smprop.proportions_ztest(count_, nobs, value=p_null_, alternative='two-sided'))
+print(smprop.proportions_ztest(count_, nobs, value=p_null_, alternative='two-sided', prop_var=p_null_))
+print('\nx = 1')
+count_ = 0.05
+p_null_ = 0.05
+print(smprop.binom_test(count_, nobs, prop=p_null_, alternative='two-sided'))
+print(smprop.proportions_ztest(count_, nobs, value=p_null_, alternative='two-sided'))
+print(smprop.proportions_ztest(count_, nobs, value=p_null_, alternative='two-sided', prop_var=p_null_))
+
+
+# In[10]:
+
+import statsmodels.api as sm
+
+res = sm.GLM([[7, 30 - 7]], [[1]], family=sm.genmod.families.Binomial(link=sm.genmod.families.links.identity)).fit()
+print(res.summary())
+
+
+# In[11]:
+
+tt = res.t_test('const - %f' % p_null)
+print(tt)
+'HO: const = %f' % p_null, tt.pvalue, tt.conf_int()
+
+
+# The pvalue is exactly the same as the Wald test version of `proportions_ztest`. The confidence interval is identical to `proportion_confint` with method `"normal"`.
+
+# In[12]:
+
+res = sm.GLM([[7, 30 - 7]], [[1]], family=sm.genmod.families.Binomial(link=sm.genmod.families.links.identity), offset=[[p_null]]).fit()
+print(res.summary())
+
+
 # **Equivalence**
 
-# In[8]:
+# In[13]:
 
 low, upp = ci_df.loc['beta', :]
 smprop.binom_tost(count, nobs, low, upp)
 
 
-# In[9]:
+# In[14]:
 
 print('score', smprop.binom_tost(count, nobs, *ci_df.loc['wilson', :]))
 print('wald ', smprop.binom_tost(count, nobs, *ci_df.loc['normal', :]))
 
 
-# In[10]:
+# In[15]:
 
 smprop.proportions_ztost(count, nobs, *ci_df.loc['wilson', :])
 
 
-# In[11]:
+# In[16]:
 
 smprop.proportions_ztost(count, nobs, *ci_df.loc['beta', :])
 
@@ -113,7 +172,7 @@ smprop.proportions_ztost(count, nobs, *ci_df.loc['beta', :])
 # 
 # where p0 = 0.3
 
-# In[12]:
+# In[17]:
 
 te = smprop.binom_test(count, nobs, prop=p_null, alternative='larger')
 tw = smprop.proportions_ztest(count, nobs, value=p_null, alternative='larger')
@@ -130,7 +189,7 @@ print('score: ', ts[1])
 # 
 # where p0 = 0.3
 
-# In[13]:
+# In[18]:
 
 te = smprop.binom_test(count, nobs, prop=p_null, alternative='smaller')
 tw = smprop.proportions_ztest(count, nobs, value=p_null, alternative='smaller')
@@ -142,7 +201,7 @@ print('score: ', ts[1])
 
 # We can look at null hypothesis that are further away from the observed proportion to see which hypothesis are rejected. The observed proportion is 0.23, our new null hypothesis value is 0.6. 
 
-# In[14]:
+# In[19]:
 
 p_null_ = 0.6
 te = smprop.binom_test(count, nobs, prop=p_null_, alternative='smaller')
@@ -153,7 +212,7 @@ print('wald:  ', tw[1])
 print('score: ', ts[1])
 
 
-# In[15]:
+# In[20]:
 
 p_null_ = 0.6
 te = smprop.binom_test(count, nobs, prop=p_null_, alternative='larger')
@@ -201,7 +260,7 @@ print('score: ', ts[1])
 # 
 # We can also use the standard t-test in large samples if we encode the data with 0 for no event and 1 for the success event. The t-test estimates the variance from the data and does not take the relationship between mean and variance explicitly into account. However, by the law of large numbers the mean, i.e. the proportion in the current case, will be asymptotically distributed as normal which can be approximated by the t-distribution.
 
-# In[16]:
+# In[21]:
 
 import statsmodels.stats.weightstats as smsw
 yy = np.repeat([0, 1], [nobs - count, count])
@@ -209,37 +268,37 @@ ds = smsw.DescrStatsW(yy)
 ds.ttest_mean(0.3)
 
 
-# In[17]:
+# In[22]:
 
 vars(ds)
 
 
-# In[18]:
+# In[23]:
 
 ds.ttest_mean(0.3, alternative='larger')
 
 
-# In[19]:
+# In[24]:
 
 ds.ttest_mean(0.3, alternative='smaller')
 
 
 # In this example the p-values from the t-test are in between the asymptotic score and wald tests based on the normal distribution for all three alternatives. The t-test based toast has a p-value that is slightly larger than the normal distribution based TOST test for proportions, 0.049 versus 0.041 which are both larger than the binomial distribution based TOST, which is 0.025 when we use the latter's confidence interval for the equivalence margins. 
 
-# In[20]:
+# In[25]:
 
 ds.ttost_mean(*ci_df.loc['beta', :])
 
 
 # We used a full sample with individual observations in the above. However, `DescrStatsW` allows us to use weights and we can specify the sample by the frequency of each level of the observation. The results are the same as before.
 
-# In[21]:
+# In[26]:
 
 ds2 = smsw.DescrStatsW([0, 1], weights=[nobs - count, count])
 ds2.ttest_mean(0.3, alternative='smaller')
 
 
-# In[22]:
+# In[27]:
 
 ds2.ttost_mean(*ci_df.loc['beta', :])
 
@@ -264,7 +323,7 @@ ds2.ttost_mean(*ci_df.loc['beta', :])
 
 # **Rejection region**
 
-# In[23]:
+# In[28]:
 
 rej = np.array([smprop.proportions_ztest(count_, nobs, value=p_null, alternative='two-sided', prop_var=p_null)[1] 
                 for count_ in range(nobs + 1)])
@@ -273,7 +332,7 @@ np.column_stack((rej, rej_indicator))
 rej_indicator_score = rej_indicator  # keep for later use
 
 
-# In[24]:
+# In[29]:
 
 rej = np.array([smprop.binom_test(count_, nobs, prop=p_null, alternative='two-sided') for count_ in range(nobs + 1)])
 rej_indicator = (rej < 0.05) #.astype(int)
@@ -286,14 +345,14 @@ np.column_stack((range(nobs + 1), rej, rej_indicator))
 # 
 # We can use the set of values for which the null hypothesis is rejected instead of using a boolean indicator.
 
-# In[25]:
+# In[30]:
 
 x = np.arange(nobs + 1)
 x_rej = x[rej_indicator]
 x_rej_score = x[rej_indicator_score]
 
 
-# In[26]:
+# In[31]:
 
 print('binom', x_rej)
 print('score', x_rej_score)
@@ -303,7 +362,7 @@ print('score', x_rej_score)
 
 # For the current case we use the exact binomial distribution to calculate the power. The null hypothesis in this example is a two-sided test for p = 0.3. Use p1 for the proportion at which the power or rejection probability is calculated. First we check the size of the test, i.e. p1 = p_null = 0.3
 
-# In[27]:
+# In[32]:
 
 p1 = 0.3
 stats.binom.pmf(x_rej, nobs, p1).sum()
@@ -311,7 +370,7 @@ stats.binom.pmf(x_rej, nobs, p1).sum()
 
 # Because we are using the exact test, the probability of rejection under the null is smaller than the required alpha = 0.05. In this example the exact probability is close to the 0.05 threshold. In contrast to this, the score test is liberal in this example and rejects with probability 0.07 instead of the required 0.05.
 
-# In[28]:
+# In[33]:
 
 stats.binom.pmf(x_rej_score, nobs, p1).sum()
 
@@ -320,7 +379,7 @@ stats.binom.pmf(x_rej_score, nobs, p1).sum()
 # 
 # In the case of the binomial distribution with probability p_null under the null hypothesis has tail probabilities at most alpha / 2 in each tail (for equal tailed hypothesis tests).
 
-# In[29]:
+# In[34]:
 
 lowi, uppi = stats.binom.interval(0.95, nobs, p_null)
 lowi, uppi
@@ -338,26 +397,26 @@ lowi, uppi
 # Because of the discreteness of the sample space having tail probabilities equal to alpha / 2 is in general not possible.
 # 
 
-# In[30]:
+# In[35]:
 
 low, upp = lowi, uppi
 
 
-# In[31]:
+# In[36]:
 
 stats.binom.ppf(0.025, nobs, p_null), stats.binom.isf(0.025, nobs, p_null)
 
 
 # If we reject at 4 and smaller and reject at 14 and larger, then the probability of rejection is larger than 0.025 in each tail:
 
-# In[32]:
+# In[37]:
 
 stats.binom.cdf(low, nobs, p_null), stats.binom.sf(upp - 1, nobs, p_null)
 
 
 # If we shrink the rejection region in each tail by one, so we reject at 3 and smaller and reject at 15 and larger, then the probability of rejection is smaller than 0.025 in each tail. The total rejection probability is at 0.026 smaller than 0.05 and shows the typical case that exact tests are conservative, i.e. reject less often than alpha, often considerably less:
 
-# In[33]:
+# In[38]:
 
 prob_low = stats.binom.cdf(low - 1, nobs, p_null)
 prob_upp = stats.binom.sf(upp, nobs, p_null)
@@ -366,21 +425,21 @@ prob_low, prob_upp, prob_low + prob_upp
 
 # In this case we can increase the lower rejection threshold by one and still stay below the total rejection probability of 0.05, although in this case the rejection probability in the lower tail is larger than 0.025. In this example the same also works on the other side by expanding only the rejection region in the upper tail.
 
-# In[34]:
+# In[39]:
 
 prob_low = stats.binom.cdf(low, nobs, p_null)
 prob_upp = stats.binom.sf(upp, nobs, p_null)
 prob_low, prob_upp, prob_low + prob_upp
 
 
-# In[35]:
+# In[40]:
 
 prob_low = stats.binom.cdf(low - 1, nobs, p_null)
 prob_upp = stats.binom.sf(upp - 1, nobs, p_null)
 prob_low, prob_upp, prob_low + prob_upp
 
 
-# In[36]:
+# In[41]:
 
 stats.binom.cdf(upp, nobs, p_null) - stats.binom.cdf(low, nobs, p_null)
 
@@ -388,12 +447,12 @@ stats.binom.cdf(upp, nobs, p_null) - stats.binom.cdf(low, nobs, p_null)
 # TODO: why does binom_test reject at 4? 
 # binom_test is used from scipy.stats for the two-sided alternative.
 
-# In[37]:
+# In[42]:
 
 smprop.binom_test(3, nobs, prop=p_null, alternative='smaller'), smprop.binom_test(4, nobs, prop=p_null, alternative='smaller')
 
 
-# In[38]:
+# In[43]:
 
 smprop.binom_test(4, nobs, prop=p_null, alternative='two-sided')
 # we get the same answer as in R
@@ -405,7 +464,7 @@ smprop.binom_test(4, nobs, prop=p_null, alternative='two-sided')
 # 
 # The pvalue for the centered test is based on doubling the probability of the smaller tail. Given that it does not exist, we can implement it quickly, and check against R's exactci package, which matches our results.
 
-# In[39]:
+# In[44]:
 
 def binom_test_centered(count, nobs, prop=0.5):
     """two-sided centered binomial test"""
@@ -414,12 +473,12 @@ def binom_test_centered(count, nobs, prop=0.5):
     return 2 * min(prob_low, prob_upp)
 
 
-# In[40]:
+# In[45]:
 
 binom_test_centered(3, nobs, prop=p_null), binom_test_centered(4, nobs, prop=p_null)
 
 
-# In[41]:
+# In[46]:
 
 binom_test_centered(13, nobs, prop=p_null), binom_test_centered(14, nobs, prop=p_null)
 
@@ -441,7 +500,7 @@ results from R library exactci, with centered binomial test
 
 # After this more extended detour we go back to our power calculations. So assuming we know the critical values of our rejection region, we can calculate the power using the cdf and sf function of the binomial distribution.
 
-# In[42]:
+# In[47]:
 
 def power_binom_reject(low, upp, prop, nobs):
     """ calculate the power of a test given the rejection intervals
@@ -480,7 +539,7 @@ def power_binom_reject(low, upp, prop, nobs):
     return prob_low + prob_upp
 
 
-# In[43]:
+# In[48]:
 
 for test, l, u in [('binom        ', 4, 15), ('binom_central', 3, 15), ('score        ', 4, 14)]:
     print(test, l, u, power_binom_reject(l, u, p_null, nobs))
@@ -491,7 +550,7 @@ for test, l, u in [('binom        ', 4, 15), ('binom_central', 3, 15), ('score  
 
 
 
-# In[44]:
+# In[49]:
 
 def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), kwds=None, item=None, use_idx=False):
     """calculate power for proportion test by explicit numeration of sample space
@@ -543,7 +602,7 @@ def power_binom_proptest(test_func, p_null, prop, nobs, alpha=0.05, args=(), kwd
 
 # We can use this function to check the size of the two binomial tests. Both results are what we already had before and agree with the results of R packages.
 
-# In[45]:
+# In[50]:
 
 print(power_binom_proptest(smprop.binom_test, p_null, p_null, nobs))
 print(power_binom_proptest(smprop.binom_test, p_null, p_null, nobs, use_idx=True))
@@ -555,7 +614,7 @@ print(power_binom_proptest(smprop.binom_test, p_null, p_null, nobs, use_idx=True
 
 
 
-# In[46]:
+# In[51]:
 
 print(power_binom_proptest(binom_test_centered, p_null, p_null, nobs))
 print(power_binom_proptest(binom_test_centered, p_null, p_null, nobs, use_idx=True))
@@ -564,14 +623,14 @@ print(power_binom_proptest(binom_test_centered, p_null, p_null, nobs, use_idx=Tr
 
 # We obtain the power of the test at a proportion that is different from the proportion of the null hypothesis. Using the minlike binomial test the power if the true proportion is 0.5 is 0.57, the power for the central binomial test differs only in the 5th decimal from this.
 
-# In[47]:
+# In[52]:
 
 print(power_binom_proptest(smprop.binom_test, p_null, 0.5, nobs))
 print(power_binom_proptest(smprop.binom_test, p_null, 0.5, nobs, use_idx=True))
 # 0.572262  R library MESS: power.binom.test(n = 30, p0 = 0.3, pa = 0.5)
 
 
-# In[48]:
+# In[53]:
 
 print(power_binom_proptest(binom_test_centered, p_null, 0.5, nobs))
 print(power_binom_proptest(binom_test_centered, p_null, 0.5, nobs, use_idx=True))
@@ -580,7 +639,7 @@ print(power_binom_proptest(binom_test_centered, p_null, 0.5, nobs, use_idx=True)
 
 # surprisingly this also works in vectorized for to calculate the power for a set of alternatives.
 
-# In[49]:
+# In[54]:
 
 p1 = np.linspace(0.1, 0.8, 15)
 pbminlike = power_binom_proptest(smprop.binom_test, p_null, p1, nobs)
@@ -591,14 +650,14 @@ pow_bt
 
 # to check this let's use a list comprehension and explicitly loop over all alternative proportions
 
-# In[50]:
+# In[55]:
 
 [power_binom_proptest(smprop.binom_test, p_null, p1_, nobs) for p1_ in p1]
 
 
 # And finally a plot.
 
-# In[51]:
+# In[56]:
 
 import matplotlib.pyplot as plt
 plt.figure(figsize=(8, 6))
@@ -610,7 +669,7 @@ plt.legend(loc='lower right')
 
 # From the plot we can see that both binomial test have the same power for large true proportions, but the standard minlike binomial test is more powerful than the central binomial test for small true proportions. For example, if the true proportion is 0.15, then the probability of rejecting the null hypothesis are 0.52 versus 0.32. We can verify that the two R packages produce the same result
 
-# In[52]:
+# In[57]:
 
 # 0.5244758 power.binom.test(n = 30, p0 = 0.3, pa = 0.15)
 # 0.321667  powerBinom(n = 30, p0 = 0.3, p1 = 0.15, strict=TRUE)
@@ -619,7 +678,7 @@ print(pow_bt[1,:])
 
 # ### Power as a function of nobs
 
-# In[53]:
+# In[58]:
 
 nobs_arr = np.arange(30, 100)
 #this doesn't work vectorized in nobs
@@ -627,13 +686,13 @@ pbcentral_nobs = [power_binom_proptest(binom_test_centered, p_null, 0.5, nobs_) 
 pbcentral_nobs
 
 
-# In[54]:
+# In[59]:
 
 pbminlike_nobs = [power_binom_proptest(smprop.binom_test, p_null, 0.5, nobs_) for nobs_ in nobs_arr]
 pbminlike_nobs
 
 
-# In[55]:
+# In[60]:
 
 pbcentral_nobs_arr, rej_minlike = list(zip(*pbcentral_nobs))
 pbcentral_nobs_arr
@@ -641,7 +700,7 @@ pbminlike_nobs_arr, rej_minlike = list(zip(*pbminlike_nobs))
 np.column_stack((nobs_arr, pbminlike_nobs_arr, pbcentral_nobs_arr))
 
 
-# In[56]:
+# In[61]:
 
 plt.figure(figsize=(8, 6))
 plt.plot(nobs_arr, pbminlike_nobs_arr, label='minlike')
@@ -649,14 +708,14 @@ plt.plot(nobs_arr, pbcentral_nobs_arr, label='central')
 plt.legend(loc='lower right')
 
 
-# In[57]:
+# In[62]:
 
 xx = (np.arange(10)<4) | (np.arange(10) > 6)
 print(xx)
 np.nonzero(np.diff(xx))[0]
 
 
-# In[58]:
+# In[63]:
 
 p_null, nobs
 
@@ -668,7 +727,7 @@ p_null, nobs
 
 # Lachine summarizes sample size calculations for proportions based on the normal distribution if we only consider the power in one tail. In this case we have an explicit formula for the required sample size. This is a good approximation to two sided tests if the probability to be in the small tail is negligible and useful for quick calculations. However, solving the sample size that correctly takes both tails into account can be done numerically without much computational effort.
 
-# In[59]:
+# In[64]:
 
 # from Lachine 1981 equ (3) and (4)
 
@@ -683,33 +742,33 @@ def power_normal_greater(diff, std_null, std_alt, nobs, alpha=0.05):
     return stats.norm.cdf(crit_pow)
 
 
-# In[60]:
+# In[65]:
 
 pa = 0.5
 power_normal_greater(pa - p_null, np.sqrt(p_null * (1 - p_null)), np.sqrt(pa * (1 - pa)), 30, alpha=0.05)
 
 
-# In[61]:
+# In[66]:
 
 std_null, std_alt = np.sqrt(p_null * (1 - p_null)), np.sqrt(pa * (1 - pa))
 sample_size_normal_greater(pa - p_null, std_null, std_alt, alpha=0.05, power=0.7528)
 
 
-# In[62]:
+# In[67]:
 
 p0 = 0.6
 pa = 0.5
 power_normal_greater(pa - p0, np.sqrt(p0 * (1 - p0)), np.sqrt(pa * (1 - pa)), 25, alpha=0.05)
 
 
-# In[63]:
+# In[68]:
 
 p0 = 0.5
 pa = 0.4
 power_normal_greater(pa - p0, np.sqrt(p0 * (1 - p0)), np.sqrt(pa * (1 - pa)), 50, alpha=0.05)
 
 
-# In[64]:
+# In[69]:
 
 p0 = 0.3
 pa = 0.5
@@ -717,7 +776,7 @@ diff = pa - p0
 power_normal_greater(diff, np.sqrt(p0 * (1 - p0)), np.sqrt(pa * (1 - pa)), 50, alpha=0.05)
 
 
-# In[65]:
+# In[70]:
 
 p0 = 0.5
 pa = 0.5
@@ -727,7 +786,7 @@ power_normal_greater(diff, np.sqrt(p0 * (1 - p0)), np.sqrt(pa * (1 - pa)), 50, a
 # 0.80743 PASS manual example Chow, Shao, and Wang (2008)  2-sided S(Phat)
 
 
-# In[66]:
+# In[71]:
 
 p0 = 0.5
 pa = 0.6
@@ -736,7 +795,7 @@ power_normal_greater(diff, np.sqrt(p0 * (1 - p0)), np.sqrt(pa * (1 - pa)), 153, 
 # 0.80125 PASS doc example from Ryan (2013) for one-sided alternative
 
 
-# In[67]:
+# In[72]:
 
 # copied and adjusted from statsmodels.stats.power
 def normal_power(effect_size, nobs, alpha, alternative='two-sided', std_null=1, std_alt=1):
@@ -764,7 +823,7 @@ def normal_power(effect_size, nobs, alpha, alternative='two-sided', std_null=1, 
     return pow_ #, (crit* std_null - d*np.sqrt(nobs))/std_alt, (crit* std_null - d*np.sqrt(nobs))/std_alt, crit_pow
 
 
-# In[68]:
+# In[73]:
 
 p0 = 0.5
 pa = 0.5
@@ -777,7 +836,7 @@ print(po, 1-po)
 # close to above 0.80742957881382105, closer to pass 0.80743
 
 
-# In[69]:
+# In[74]:
 
 p0 = 0.5
 pa = 0.6
@@ -794,7 +853,7 @@ po
 
 # check size (power at null)
 
-# In[70]:
+# In[75]:
 
 p0 = 0.6
 pa = 0.6
@@ -814,7 +873,7 @@ po
 
 # Next we try exact power for the already available proportion_ztest
 
-# In[71]:
+# In[76]:
 
 p0 = 0.5
 pa = 0.6
@@ -822,7 +881,7 @@ diff = pa - p0
 smprop.proportions_ztest(nobs_ * (pa), nobs_, value=p0, alternative='two-sided', prop_var=p0)
 
 
-# In[72]:
+# In[77]:
 
 #power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, use_idx=1)  #this raises exception
 
@@ -830,12 +889,12 @@ pzt = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, pr
 power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)   #use_idx=False raises exception
 
 
-# In[73]:
+# In[78]:
 
 p0, pa, nobs_
 
 
-# In[74]:
+# In[79]:
 
 pv = [smprop.proportions_ztest(x, nobs_, value=p0, alternative='two-sided', prop_var=p0)[1] for x in np.arange(60, 99)]
 pv = np.asarray(pv)
@@ -856,7 +915,7 @@ np.column_stack((np.arange(60, 99), pv, pv <=0.05))
 # 50 0.5000 0.6000 0.0500 0.23706 0.33613 0.23706 0.33613 0.23706
 # ```
 
-# In[75]:
+# In[80]:
 
 p0, pa, nobs_ = 0.5, 0.6, 50
 power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)
@@ -869,7 +928,7 @@ power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)
 
 
 
-# In[76]:
+# In[81]:
 
 pzt_wald = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, prop_var=None)
 power_binom_proptest(pzt_wald, p0, pa, nobs_, item=1, use_idx=1)
@@ -877,7 +936,7 @@ power_binom_proptest(pzt_wald, p0, pa, nobs_, item=1, use_idx=1)
 
 # 10 0.5000 0.6000 0.0500 0.04804 0.04804 0.04804 0.17958 0.17958
 
-# In[77]:
+# In[82]:
 
 nobs_ = 10
 pzt_wald = lambda x, nobs, p_null: smprop.proportions_ztest(x, nobs, value=p_null, prop_var=None)
@@ -886,27 +945,132 @@ power_binom_proptest(pzt_wald, p0, pa, nobs_, item=1, use_idx=1)
 
 # This is the same as the Wald test, while the score test has much lower  power in this example. It is only around 0.048 which is the same in PASS and our calculations at the provided print precision.
 
-# In[78]:
+# In[83]:
 
 power_binom_proptest(pzt, p0, pa, nobs_, item=1, use_idx=1)
 
 
 # Know we know how to use it, and I added keywords to the `power_binom_proptest` above, we can drop the use of lambda functions.
 
-# In[79]:
+# In[84]:
 
 power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, item=1, use_idx=1)
 
 
-# In[80]:
+# In[85]:
 
 power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, kwds={'prop_var': p0}, item=1, use_idx=1)
 
 
-# In[81]:
+# In[86]:
 
 print(power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, item=1, use_idx=0))
 print(power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, kwds={'prop_var': p0}, item=1, use_idx=0))
+
+
+# In[ ]:
+
+
+
+
+# ## Sensitivity to misspecification
+# 
+# This is just a quick experiment.
+# 
+# 
+# We go back to the exact binomial test in the standard minlike version with power evaluated using the exact distribution. The underlying assumption is that we have a set of independent Bernoulli experiments with identical probability of an event.
+# 
+# As a simple deviation we consider that we have 3 groups of observations with different true proportions. For the initial analysis we calculate the rejection rate, size and power, using Monte Carlo.
+# 
+# It looks like in this example with three fixed groups we have underdispersion, and the rejection ratio is lower than with a sinlge group. That means that in this case the binomial test is even more conservative than in the case where the binomial distribution is correctly specified. This is a surprising because unobserved heterogeneity and mixture distribution should lead to over dispersion, but we keep the composition of the population and of the sample fixed in this experiment and consequently do not get extra variation from a changing sample composition.
+# 
+# I had used equal group sizes in my intial choice of numbers for the Monte Carlo setup. That case did not show any overdispersion in the sampled proportions. This needs further investigation.
+
+# In[87]:
+
+smprop.binom_test(31, 60)
+
+
+# In[88]:
+
+power_binom_proptest(smprop.binom_test, 0.5, 0.5, 60)
+
+
+# In[89]:
+
+# our binomial sampling process
+rvs = np.random.binomial(60, 0.5, size=10000)
+m = rvs.mean()
+m, rvs.var(), m / 60 * (1 - m / 60) * 60
+
+
+# In[90]:
+
+def binom_mix_rvs(size=1):
+    #group fraction
+    # np.random.multinomial(60, [1./3] * 3, size=size)
+    # assume fixed population group size, instead of multinomial
+    rvs1 = np.random.binomial([26, 20, 14], [0.33847, 0.5, 0.8], size=(size, 3))
+    return rvs1.sum(1)
+
+
+# In[91]:
+
+# true binomial distribution
+
+n_rep = 10000
+res0 = np.empty(n_rep, float)
+res0.fill(np.nan)
+for i in range(n_rep):
+    xc = np.random.binomial(60, 0.5)
+    res0[i] = smprop.binom_test(xc, 60)
+
+print((res0 < 0.05).mean())
+
+
+# In[92]:
+
+# mixed binomial distribution
+
+n_rep = 10000
+res0 = np.empty(n_rep, float)
+res0.fill(np.nan)
+for i in range(n_rep):
+    xc = binom_mix_rvs()
+    res0[i] = smprop.binom_test(xc, 60)
+
+print((res0 < 0.05).mean())
+
+
+# These two Monte Carlo experiments show that the rejection rate under the null hypothesis drops from 0.0276 to 0.0148. As expected, the rejection rate in the Monte Carlo corresponds closely to the exact power calculations which is 0.0273.
+# 
+# Below are some checks to see whether the random sampling works as expected.
+
+# In[93]:
+
+np.random.multinomial(60, [1./3] * 3, size=10)
+
+
+# In[94]:
+
+np.random.binomial([25, 10, 25], [0.4, 0.5, 0.6], size=(10, 3))
+
+
+# In[95]:
+
+np.random.binomial(20, [0.4, 0.5, 0.6], size=(1000, 3)).mean(0)
+
+
+# In[96]:
+
+rvs1 = binom_mix_rvs(size=100000)
+m = rvs1.mean()
+m, rvs1.var(), m / 60 * (1 - m / 60) * 60, (rvs1 / 60 * (1 - rvs1 / 60) * 60).mean()
+
+
+# In[97]:
+
+(np.array([26, 20, 14]) * [0.33847, 0.5, 0.8]).sum()
 
 
 # In[ ]:
@@ -939,14 +1103,14 @@ print(power_binom_proptest(smprop.proportions_ztest, p0, pa, nobs_, kwds={'prop_
 
 # TODO: The following is not correct because when we change the sample size, then the rejection region also changes.
 
-# In[82]:
+# In[98]:
 
 [power_binom_reject(4, 15, p_null, nobs_) for nobs_ in range(30, 50)]
 
 
 # We can also calculate this in vectorized form for the set of sample sizes and all three tests:
 
-# In[83]:
+# In[99]:
 
 power_binom_reject(np.array([4, 3, 4]), np.array([15, 15, 14]), p_null, np.arange(30, 50)[:, None])
 
@@ -963,27 +1127,27 @@ power_binom_reject(np.array([4, 3, 4]), np.array([15, 15, 14]), p_null, np.arang
 
 # ## Trying out two sample proportion, incorrect if nobs is scalar instead of same length as count.
 
-# In[84]:
+# In[100]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=0, alternative='two-sided', prop_var=p_null)
 
 
-# In[85]:
+# In[101]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[86]:
+# In[102]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[87]:
+# In[103]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs, value=-1/30, alternative='two-sided', prop_var=p_null)
 
 
-# In[88]:
+# In[104]:
 
 smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=-1/30, alternative='two-sided', prop_var=p_null)
 
@@ -993,17 +1157,17 @@ smprop.proportions_ztest(np.array([6,7]), nobs*np.ones(2), value=-1/30, alternat
 
 
 
-# In[89]:
+# In[105]:
 
 #?smprop.proportion_confint()
 
 
-# In[90]:
+# In[106]:
 
 smprop.proportion_confint(count, nobs)
 
 
-# In[91]:
+# In[107]:
 
 from statsmodels.stats.proportion import proportion_effectsize
 es = proportion_effectsize(0.4, 0.5)
@@ -1011,7 +1175,7 @@ smpow.NormalIndPower().solve_power(es, nobs1=60, alpha=0.05, ratio=0)
 # R pwr 0.3447014091272153
 
 
-# In[92]:
+# In[108]:
 
 smpow.NormalIndPower().solve_power(proportion_effectsize(0.4, 0.5), nobs1=None, alpha=0.05, ratio=0, power=0.9)
 
@@ -1031,7 +1195,7 @@ smpow.NormalIndPower().solve_power(proportion_effectsize(0.4, 0.5), nobs1=None, 
 
 
 
-# In[93]:
+# In[109]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 509/2, 0.82
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
@@ -1040,7 +1204,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
     
 
 
-# In[94]:
+# In[110]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 419/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
@@ -1048,7 +1212,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
                      critval_continuity=0)
 
 
-# In[95]:
+# In[111]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 417/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
@@ -1056,7 +1220,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='norm',
                      critval_continuity=0)
 
 
-# In[96]:
+# In[112]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 420/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
@@ -1064,7 +1228,7 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
                      critval_continuity=0)
 
 
-# In[97]:
+# In[113]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 414/2, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
@@ -1082,30 +1246,30 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.025, dist='norm',
 
 
 
-# In[98]:
+# In[114]:
 
 low, upp, nobs = 0.4, 0.6, 100
 smprop.binom_tost_reject_interval(low, upp, nobs, alpha=0.05)
 
 
-# In[99]:
+# In[115]:
 
 value, nobs = 0.4, 50
 smprop.binom_test_reject_interval(value, nobs, alpha=0.05)
 
 
-# In[100]:
+# In[116]:
 
 smprop.proportion_confint(50, 100, method='beta')
 
 
-# In[101]:
+# In[117]:
 
 low, upp, nobs = 0.7, 0.9, 100
 smprop.binom_tost_reject_interval(low, upp, nobs, alpha=0.05)
 
 
-# In[102]:
+# In[118]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 100, 0.8
 smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
@@ -1113,13 +1277,13 @@ smprop.power_ztost_prop(low, upp, nobs, p_alt, alpha=0.05, dist='binom',
                      critval_continuity=0)
 
 
-# In[103]:
+# In[119]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 100, 0.8
 smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
 
 
-# In[104]:
+# In[120]:
 
 low, upp, nobs, p_alt = 0.7, 0.9, 125, 0.8
 smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
@@ -1140,7 +1304,7 @@ smprop.power_binom_tost(low, upp, nobs, p_alt, alpha=0.05)
 
 
 
-# In[105]:
+# In[121]:
 
 # from Lachine 1981 equ (3) and (4)
 
@@ -1155,7 +1319,7 @@ def power_normal_greater(diff, std_null, std_alt, nobs, alpha=0.05):
     return stats.norm.cdf(crit_pow)
 
 
-# In[106]:
+# In[122]:
 
 # Note for two sample comparison we have to adjust the standard deviation for unequal sample sizes
 n_frac1 = 0.5
@@ -1174,30 +1338,30 @@ nobs = sample_size_normal_greater(diff, std_null, std_alt, alpha=0.05, power=0.9
 nobs
 
 
-# In[107]:
+# In[123]:
 
 #nobs = 858
 power_normal_greater(diff, std_null, std_alt, nobs, alpha=0.05)
 
 
-# In[108]:
+# In[124]:
 
 alpha=0.05; power=0.9
 stats.norm.isf(alpha), stats.norm.isf(1 - power)
 
 
-# In[109]:
+# In[125]:
 
 crit_alpha = stats.norm.isf(alpha)
 (np.sqrt(nobs) * np.abs(diff) - crit_alpha * std_null) / std_alt
 
 
-# In[110]:
+# In[126]:
 
 stats.norm.cdf(_)
 
 
-# In[111]:
+# In[127]:
 
 smprop.binom_test_reject_interval([0.4, 0.6], [100], alpha=0.05)
 

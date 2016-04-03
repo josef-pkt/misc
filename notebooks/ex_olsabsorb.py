@@ -7,7 +7,9 @@
 # 
 # The fixed effects are included as sparse dummy matrix and partialled out of the main explanatory variables.
 
-# In[2]:
+# **Note** the first part is broken because I changed the structure of the simulated data. (IIRC)
+
+# In[1]:
 
 import time
 
@@ -25,7 +27,7 @@ from statsmodels.tools._sparse import PartialingSparse, dummy_sparse
 
 
 
-# In[40]:
+# In[2]:
 
 k_cat1, k_cat2 = 500, 100
 
@@ -50,12 +52,12 @@ y = exog_dense.dot(beta_dense) + exog_sparse.dot(beta_sparse) + 0.01 * np.random
 
 
 
-# In[41]:
+# In[3]:
 
 exog_absorb.shape, exog_sparse.shape, beta_sparse.shape
 
 
-# In[42]:
+# In[4]:
 
 t0 = time.time()
 mod_absorb = OLSAbsorb(y, exog_dense, exog_absorb)
@@ -64,83 +66,83 @@ t1 = time.time()
 print('time: ', t1 - t0)
 
 
-# In[43]:
+# In[5]:
 
 print(res_absorb.summary())
 
 
-# In[44]:
+# In[6]:
 
 xcat1
 
 
-# In[45]:
+# In[7]:
 
 xcat2
 
 
-# In[46]:
+# In[8]:
 
 locals().keys()
 
 
-# In[47]:
+# In[9]:
 
 exog_sparse.nnz
 
 
-# In[48]:
+# In[10]:
 
 exog_sparse
 
 
-# In[49]:
+# In[11]:
 
 exog_sparse.T.dot(exog_sparse)
 
 
-# In[51]:
+# In[12]:
 
 xcat2.reshape(k_cat1, k_cat2)[:20, :20]
 
 
-# In[52]:
+# In[13]:
 
 xm = exog_dense[:,-1].reshape(k_cat1, k_cat2)
 
 
-# In[53]:
+# In[14]:
 
 xm -= xm.mean(1)[:,None]
 xm -= xm.mean(0)
 
 
-# In[54]:
+# In[ ]:
 
 xm[:5, :5]
 
 
-# In[17]:
+# In[ ]:
 
 res_absorb.model.exog[:20, -1]
 
 
-# In[18]:
+# In[ ]:
 
 xm.ravel()[:20]
 
 
-# In[21]:
+# In[ ]:
 
 np.max(np.abs(xm.ravel() - res_absorb.model.exog[:, -1]))
 
 
-# In[20]:
+# In[ ]:
 
 (xm.ravel(), res_absorb.model.exog[:, -1])[:20]
 
 
-# In[26]:
+# In[ ]:
 
 xm = exog_dense.reshape(-1, k_cat1, k_cat2)
 xm -= xm.mean(1, keepdims=True)
@@ -148,7 +150,7 @@ xm -= xm.mean(2, keepdims=True)
 np.max(np.abs(xm.reshape(-1, exog_dense.shape[-1]) - res_absorb.model.exog))
 
 
-# In[27]:
+# In[ ]:
 
 xm = exog_dense.reshape(-1, k_cat1, k_cat2)
 xm -= np.nanmean(xm, axis=1, keepdims=True)
@@ -156,7 +158,7 @@ xm -= np.nanmean(xm, axis=2, keepdims=True)
 np.max(np.abs(xm.reshape(-1, exog_dense.shape[-1]) - res_absorb.model.exog))
 
 
-# In[141]:
+# In[ ]:
 
 k_cat = (k_cat1, k_cat2)
 xm = exog_dense.reshape(-1, *k_cat)
@@ -165,7 +167,7 @@ for axis in range(xm.ndim):
 np.max(np.abs(xm.reshape(-1, exog_dense.shape[-1]) - res_absorb.model.exog))
 
 
-# In[252]:
+# In[15]:
 
 from pandas import DataFrame
 np.random.seed(1234)
@@ -175,23 +177,23 @@ df.head()
 df[df.A==3]
 
 
-# In[253]:
+# In[16]:
 
 df[df.A==3].B.mean()
 
 
-# In[254]:
+# In[17]:
 
 df.head()
 
 
-# In[255]:
+# In[18]:
 
 df['B'] -= df.groupby('A')['B'].transform('mean')
 df.head()
 
 
-# In[257]:
+# In[19]:
 
 np.random.seed(1234)
 df = DataFrame({'A' : np.random.randint(0,10,size=100), 'B' : np.random.randn(100), 'D' : np.random.randn(100)})
@@ -199,12 +201,12 @@ df[['B', 'D']] -= df.groupby('A')[['B', 'D']].transform('mean')
 df[df.A==3].B.mean()
 
 
-# In[258]:
+# In[20]:
 
 df[df.A==3]
 
 
-# In[268]:
+# In[21]:
 
 np.random.seed(1234)
 df = DataFrame({'A' : np.random.randint(0,10,size=100), 'B' : np.random.randn(100), 'D' : np.random.randn(100)})
@@ -213,13 +215,13 @@ df2[df2.columns] -= df2.groupby(df['A'])[df2.columns].transform('mean')
 df2[df.A==3].B.mean()
 
 
-# In[38]:
+# In[22]:
 
 import pandas as pd
 pd.__version__
 
 
-# In[168]:
+# In[23]:
 
 # with unbalanced panel
 
@@ -233,47 +235,47 @@ for it in range(3):
 np.max(np.abs(xm.reshape(exog_dense.shape[-1], -1).T[keep] + exog_dense.mean(0) - res_absorb.model.wexog), axis=0)
 
 
-# In[161]:
+# In[24]:
 
 np.mean(np.abs(xm.reshape(exog_dense.shape[-1], -1).T[keep] - res_absorb.model.wexog), axis=0)
 
 
-# In[165]:
+# In[25]:
 
 exog_dense.mean(0)
 
 
-# In[143]:
+# In[26]:
 
 xm.shape
 
 
-# In[144]:
+# In[27]:
 
 xm[2, :5, :5].T
 
 
-# In[148]:
+# In[28]:
 
 xm.reshape(exog_dense.shape[-1], -1).T[:35]
 
 
-# In[155]:
+# In[29]:
 
 res_absorb.model.wexog[:5]
 
 
-# In[135]:
+# In[30]:
 
 (1 - np.isnan(xm)).sum(2)
 
 
-# In[93]:
+# In[31]:
 
 keep[:25]
 
 
-# In[55]:
+# In[32]:
 
 exog_dense.shape + k_cat
 
@@ -283,27 +285,27 @@ exog_dense.shape + k_cat
 
 
 
-# In[59]:
+# In[33]:
 
 xm.shape
 
 
-# In[60]:
+# In[34]:
 
 xm[:, xcat1, xcat2].shape
 
 
-# In[63]:
+# In[35]:
 
 xm.shape
 
 
-# In[64]:
+# In[36]:
 
 xm[-1, :5,:5]
 
 
-# In[66]:
+# In[37]:
 
 xm.reshape(-1, exog_dense.shape[-1])[:15]
 
@@ -313,27 +315,27 @@ xm.reshape(-1, exog_dense.shape[-1])[:15]
 
 
 
-# In[67]:
+# In[38]:
 
 keep[:15]
 
 
-# In[68]:
+# In[39]:
 
 res_absorb.model.exog[:15]
 
 
-# In[69]:
+# In[40]:
 
 (1-keep).sum()
 
 
-# In[70]:
+# In[41]:
 
 keep.shape
 
 
-# In[130]:
+# In[42]:
 
 k_cat = (k_cat1, k_cat2)
 xm = np.empty(exog_dense.shape[1:] + k_cat)
@@ -343,87 +345,87 @@ xm[:, xcat1, xcat2] = exog_dense.T
 xm2[2, xcat1, xcat2] = exog_dense[:, 2]
 
 
-# In[131]:
+# In[43]:
 
 xm[:, :5, :5]
 
 
-# In[114]:
+# In[44]:
 
 np.nonzero(np.isnan(xm[2, :, :].ravel()))[0][:5]
 
 
-# In[74]:
+# In[45]:
 
 exog_dense[:15, 2]
 
 
-# In[76]:
+# In[46]:
 
 exog_dense[500:515, 2]
 
 
-# In[80]:
+# In[47]:
 
 exog_dense[xcat1 == 2][:5]
 
 
-# In[83]:
+# In[48]:
 
 np.nanmean(xm, axis=axis, keepdims=True)[:10]
 
 
-# In[95]:
+# In[49]:
 
 xcat2[:20]
 
 
-# In[96]:
+# In[50]:
 
 np.nonzero(1 - keep)[0][:5]
 
 
-# In[104]:
+# In[51]:
 
 exog_absorb[:35]
 
 
-# In[119]:
+# In[52]:
 
 xm[2, :5, :5]
 
 
-# In[124]:
+# In[53]:
 
 np.nanmean(xm2[2, :,:], axis=0, keepdims=True)[:, :5]
 
 
-# In[126]:
+# In[54]:
 
 exog_dense[xcat2 == 2, 2].mean()
 
 
-# In[105]:
+# In[55]:
 
 k_cat
 
 
-# In[115]:
+# In[56]:
 
 np.isnan(xm[2, :, :].ravel()[keep]).any()
 
 
-# In[117]:
+# In[57]:
 
 exog_dense.shape
 
 
-# In[129]:
+# In[58]:
 
 (xm2[2, :,:] - np.nanmean(xm2[2, :,:], axis=0, keepdims=True)).shape
 
 
-# In[239]:
+# In[59]:
 
 def _group_demean_iterative(exog_dense, groups, add_mean=True, max_iter=10, atol=1e-8, get_groupmeans=False):
     """iteratively demean an array for two-way fixed effects
@@ -496,33 +498,33 @@ xm, xd, it = _group_demean_iterative(exog_dense, exog_absorb, max_iter=50, add_m
 xm.shape, it
 
 
-# In[240]:
+# In[60]:
 
 np.max(np.abs(xm.reshape(exog_dense.shape[-1], -1).T[keep] + exog_dense.mean(0) - res_absorb.model.wexog), axis=0)
 
 
-# In[212]:
+# In[61]:
 
 np.max(np.abs(xd + exog_dense.mean(0) - res_absorb.model.wexog), axis=0)
 
 
-# In[213]:
+# In[62]:
 
 xm, xd, it = _group_demean_iterative(exog_dense, exog_absorb, max_iter=50, add_mean=True)
 np.max(np.abs(xd - res_absorb.model.wexog), axis=0)
 
 
-# In[214]:
+# In[63]:
 
 xd.shape
 
 
-# In[227]:
+# In[64]:
 
 ym, yd, it = _group_demean_iterative(y[:,None], exog_absorb, max_iter=50, add_mean=True)
 
 
-# In[228]:
+# In[65]:
 
 mod_ols2 = OLS(yd, xd)
 ddof = k_cat1 + k_cat2 - 2
@@ -531,52 +533,52 @@ mod_ols2.df_model = mod_ols2.df_model + ddof
 res_ols2 = mod_ols2.fit()
 
 
-# In[229]:
+# In[66]:
 
 res_ols2.params
 
 
-# In[230]:
+# In[67]:
 
 res_absorb.params
 
 
-# In[231]:
+# In[68]:
 
 res_ols2.bse
 
 
-# In[232]:
+# In[69]:
 
 res_absorb.bse
 
 
-# In[233]:
+# In[70]:
 
 res_ols2.bse / res_absorb.bse
 
 
-# In[234]:
+# In[71]:
 
 ddof
 
 
-# In[238]:
+# In[72]:
 
 res_ols2.df_resid, res_absorb.df_resid, res_ols2.df_model, res_absorb.df_model
 
 
-# In[236]:
+# In[73]:
 
 print(res_ols2.summary())
 
 
-# In[237]:
+# In[74]:
 
 print(res_absorb.summary())
 
 
-# In[ ]:
+# In[75]:
 
 xx = np.array((1e4, 10))
 dfxx = pd.DataFrame(xx)
